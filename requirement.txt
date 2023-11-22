@@ -1,0 +1,8 @@
+websockets
+numpy 
+pandas
+tensorflow[and-cuda]
+holoviews[all]
+panel
+bokeh==2.4
+matplotlib
