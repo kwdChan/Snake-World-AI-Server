@@ -11,6 +11,8 @@ def summarise_locations(locs, with_counts=True, with_nearest=True):
     """
     get n left, n right, n in-front, n behind, nearest left, nearest right, nearest in-front nearest behind
 
+    clip the counts at 10 
+
 
     negative: top-left
     snake loc: (0,0)
@@ -50,7 +52,7 @@ def summarise_locations(locs, with_counts=True, with_nearest=True):
     result = []
     if with_counts: 
         
-        result += [len(loc_right),len(loc_left),len(loc_behind),len(loc_front)]
+        result += [max(10, len(loc_right)),max(10, len(loc_left)),max(10, len(loc_behind)),max(10, len(loc_front))]
 
     if with_nearest:
         result += [
@@ -83,7 +85,7 @@ class DQLModelPreExtracted:
         self.buffer_clearing_size = 1000
         self.update_target=500
 
-        self.epsilon_random_frames = 5000
+        self.epsilon_random_frames = 10000
         self.epsilon_greedy_frames = 1000000
 
         self.epsilon = 1
@@ -248,9 +250,21 @@ class DQLModelPreExtracted:
             return action
 
         def draw_history(self, size):
-            if size == 0:
+
+            
+            if self.replay_buffer_size<3:
+                return {
+                "state":[],
+                "action":[],
+                "reward":[],
+                "next_state":[],
+            }
+        
+            if (size == 0):
                 sample_indices = []
-            sample_indices = np.random.choice(self.replay_buffer_size, size)
+            else: 
+                sample_indices = np.random.choice(self.replay_buffer_size, size)
+
             return {
                 "state":[self.state_hist[idx] for idx in sample_indices],
                 "action":[self.action_hist[idx] for idx in sample_indices],
