@@ -84,7 +84,9 @@ class DQLModelPreExtracted:
 
         self.max_replay_buffer_size=10000
         self.buffer_clearing_size = 1000
-        self.update_target=20
+        self.update_target = 20
+        self.save_freq = 10000
+        self.save_name = "23Nov2023"
 
         self.epsilon_random_frames = 10000
         self.epsilon_greedy_frames = 1000000
@@ -159,6 +161,13 @@ class DQLModelPreExtracted:
         if not(self.train_step % self.update_target):
             self.target_model.set_weights(self.model.get_weights())
 
+        if not (self.train_step % self.save_freq):
+            self.model.save(self.save_name+f"step{self.train_step}.keras")
+
+    def load_model(self, path):
+        self.model = tf.keras.saving.load_model(path)
+
+        
     def eval(self):
         r = []
         ts = []
