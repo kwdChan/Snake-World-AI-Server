@@ -30,7 +30,3 @@ def to_sparse(arr, x_bounds:Tuple, y_bounds: Tuple):
     np.apply_along_axis(assign, axis =1, arr=arr)
 
     return result
-
-class Inspector:
-    def __init__(self):
-        self.data = {}
