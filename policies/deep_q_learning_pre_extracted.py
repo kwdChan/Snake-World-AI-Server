@@ -68,8 +68,7 @@ class DQLModelPreExtracted:
     def __init__(self):
         def create_model():
             x = tf.keras.layers.Input(36)
-            z = tf.keras.layers.Dense(100, activation='relu')(x)
-            z = tf.keras.layers.Dense(50, activation='relu')(z)
+            z = tf.keras.layers.Dense(50, activation='relu')(x)
             z = tf.keras.layers.Dense(4, activation='linear')(z)
             return tf.keras.Model(x, z)
         
@@ -81,7 +80,9 @@ class DQLModelPreExtracted:
         self.loss_function = tf.keras.losses.Huber()
         self.gamma = 0.7
 
-        self.max_replay_buffer_size=100000
+        self.max_agent_number = 20
+
+        self.max_replay_buffer_size=10000
         self.buffer_clearing_size = 1000
         self.update_target=20
 
@@ -171,6 +172,8 @@ class DQLModelPreExtracted:
         
         new_agent = type(self).Agent(agent_id, self, self.max_replay_buffer_size, self.buffer_clearing_size)
         self.agent_list.append(new_agent)
+        if len(self.agent_list) > self.max_agent_number:
+            self.agent_list = self.agent_list[-self.max_agent_number:]
         return new_agent
     
     def get_agent(self, agent_id):
