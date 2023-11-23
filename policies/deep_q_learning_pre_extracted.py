@@ -67,7 +67,7 @@ def summarise_locations(locs, with_counts=True, with_nearest=True):
 class DQLModelPreExtracted:
     def __init__(self):
         def create_model():
-            x = tf.keras.layers.Input(44)
+            x = tf.keras.layers.Input(36)
             z = tf.keras.layers.Dense(100, activation='relu')(x)
             z = tf.keras.layers.Dense(50, activation='relu')(z)
             z = tf.keras.layers.Dense(4, activation='linear')(z)
@@ -79,11 +79,11 @@ class DQLModelPreExtracted:
         # from https://keras.io/examples/rl/deep_q_network_breakout/
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=0.00025, clipnorm=1.0)
         self.loss_function = tf.keras.losses.Huber()
-        self.gamma = 0.99
+        self.gamma = 0.7
 
         self.max_replay_buffer_size=100000
         self.buffer_clearing_size = 1000
-        self.update_target=500
+        self.update_target=20
 
         self.epsilon_random_frames = 10000
         self.epsilon_greedy_frames = 1000000
@@ -181,6 +181,8 @@ class DQLModelPreExtracted:
         return self.create_agent(agent_id)
     
 
+    
+
     class Agent:
         def __init__(self, agent_id, model:"DQLModelPreExtracted", max_replay_buffer_size, buffer_clearing_size):
             """
@@ -215,7 +217,7 @@ class DQLModelPreExtracted:
         @staticmethod
         def get_features(obs):
             return np.array([
-                summarise_locations(obs['no_go'], with_counts=False) +  #8
+                #summarise_locations(obs['no_go'], with_counts=False) +  #8
                 summarise_locations(obs['edible']) + #12
                 summarise_locations(obs['inedible']) + #12
                 summarise_locations(obs['body']) #12
