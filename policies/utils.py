@@ -6,7 +6,7 @@ def to_sparse(arr, x_bounds:Tuple, y_bounds: Tuple):
     size = 2
     included indx: 0, 1
     """
-
+    arr = arr.copy()
     x_size = x_bounds[1]-x_bounds[0]
     y_size = y_bounds[1]-y_bounds[0]
 

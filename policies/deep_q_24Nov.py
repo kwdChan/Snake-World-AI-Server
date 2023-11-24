@@ -5,70 +5,25 @@ import pandas as pd
 import tensorflow as tf
 
 N_ACTION = 4
-
-
-def summarise_locations(locs, with_counts=True, with_nearest=True):
-    """
-    get n left, n right, n in-front, n behind, nearest left, nearest right, nearest in-front nearest behind
-
-    clip the counts at 10 
-
-
-    negative: top-left
-    snake loc: (0,0)
-
+def screenout_body_from_edible(edible, body):
+    if not len(body) or len(edible):
+        return edible
     
-    return a list of int
-    """
-    
-    if not len(locs):
-        result = []
-        if with_counts:
-            result += [0,0,0,0]
-        if with_nearest: 
-            result += [0,0, 0,0, 0,0, 0,0]
-        return result
+    # (2, n_food, 1) x (2, 1, n_body) -> (2, n_food, n_body)
+    b = np.broadcast(edible.T[:, :, None] , body.T[:, None, :])
+    out = np.empty(b.shape)
+    out.flat = [u == v for (u,v) in b]
 
-    right = (locs[:, 0] > 0)
-    left = (locs[:, 0] < 0)
-    centre = (locs[:, 0] == 0)
-    front = (centre & (locs[:, 1] < 0))
-    behind = (centre & ~front)
+    # (2, n_food, n_body) -> (n_food, n_body) -> (n_food, )
+    overlaps = out.all(0).any(1)
+    return edible[~overlaps]
 
-
-    loc_right = locs[right, :]
-    loc_left = locs[left, :]
-    loc_behind = locs[behind, :]
-    loc_front = locs[front, :]
-
-    def get_nearest(locs):
-        if not len(locs):
-            return [0, 0]
-        locs = abs(locs)
-        #print(locs)
-        argmin = np.argmin(locs[:, 0]+locs[:, 1])
-        return locs[argmin,0], locs[argmin,1]
-    
-    result = []
-    if with_counts: 
-        
-        result += [max(10, len(loc_right)),max(10, len(loc_left)),max(10, len(loc_behind)),max(10, len(loc_front))]
-
-    if with_nearest:
-        result += [
-            *get_nearest(loc_right), 
-            *get_nearest(loc_left), 
-            *get_nearest(loc_behind), 
-            *get_nearest(loc_front), 
-        ]
-    
-    return result
 
 class DQLModelPreExtracted:
     def __init__(self):
         def create_model():
-            x = tf.keras.layers.Input(36)
-            z = tf.keras.layers.Dense(50, activation='relu')(x)
+            x = tf.keras.layers.Input(10)
+            z = tf.keras.layers.Dense(15, activation='relu')(x)
             z = tf.keras.layers.Dense(4, activation='linear')(z)
             return tf.keras.Model(x, z)
         
@@ -86,7 +41,7 @@ class DQLModelPreExtracted:
         self.buffer_clearing_size = 1000
         self.update_target = 20
         self.save_freq = 10000
-        self.save_name = "23Nov2023"
+        self.save_name = "24Nov2023"
 
         self.epsilon_random_frames = 10000
         self.epsilon_greedy_frames = 1000000
@@ -192,9 +147,6 @@ class DQLModelPreExtracted:
                 return agent_
         return self.create_agent(agent_id)
     
-
-    
-
     class Agent:
         def __init__(self, agent_id, model:"DQLModelPreExtracted", max_replay_buffer_size, buffer_clearing_size):
             """
@@ -203,7 +155,6 @@ class DQLModelPreExtracted:
 
             model is a DeepQAgentOnPreExtracted.Model object
             """
-            self.current_obs = {}
             self.model = model
             self.agent_id = agent_id
 
@@ -216,6 +167,8 @@ class DQLModelPreExtracted:
             self.max_replay_buffer_size = max_replay_buffer_size
             self.buffer_clearing_size = buffer_clearing_size
             self.training_episode = 0
+            self.last_obs = None
+            self.last_state = None
 
             self.next_action_random = False
 
@@ -225,19 +178,86 @@ class DQLModelPreExtracted:
         @property
         def replay_buffer_size(self):
             return len(self.state_hist) - 1
+        
+
             
         @staticmethod
         def get_features(obs):
-            return np.array([
-                #summarise_locations(obs['no_go'], with_counts=False) +  #8
-                summarise_locations(obs['edible']) + #12
-                summarise_locations(obs['inedible']) + #12
-                summarise_locations(obs['body']) #12
-            ] )  #44
+            """
+            # TODO: should go to the model
+            """
+
+            # if there's a food object n steps away directly in the front, left, right
+
+            
+            def loc_food_directly_n_steps_away(food_loc, n, nothing_value=4):
+                assert nothing_value > n
+                if not len(food_loc):
+                    return nothing_value, nothing_value, nothing_value
+                                
+                within_range = abs(food_loc).sum(1) <= n
+                food_loc = food_loc[within_range]
+
+                if not len(food_loc):
+                    return nothing_value, nothing_value, nothing_value
+                
+                ## nothing values will be returned for there's nothing
+                food_loc = np.concatenate([food_loc, [[0, -nothing_value], [nothing_value, 0], [-nothing_value, 0]]], axis=0)
+
+                midlineV = food_loc[:, 0] == 0
+                midlineH = food_loc[:, 1] == 0
+
+                right = abs(food_loc[(midlineH & (food_loc[:, 0] > 0)), 0]).min()
+                left = abs(food_loc[(midlineH & (food_loc[:, 0] < 0)), 0]).min()
+                front = abs(food_loc[(midlineV & (food_loc[:, 1] < 0)), 1]).min()
+
+                return left, right, front
+            
+
+            food = screenout_body_from_edible(obs['edible'], obs['body'])
+            food_L, food_R, food_F = loc_food_directly_n_steps_away(food, n = 3, nothing_value=5 )
+            #farfood_L, farfood_R, farfood_F = loc_food_directly_n_steps_away(food, n = 7, nothing_value=8 )
+
+
+            # if there's a enemy head 2 steps away (including diagonal) in the front, left, right, behind
+            def loc_n_step_away(loc, n, nothing_value=4):
+                assert nothing_value > n
+                if not len(loc):
+                    return nothing_value, nothing_value, nothing_value, nothing_value
+                
+                # x + y smaller than n
+                within_range = abs(loc).sum(1) <= n
+                loc = loc[within_range]
+                if not len(loc):
+                    return nothing_value, nothing_value, nothing_value, nothing_value
+                
+                # put the nothing values to return
+                loc = np.concatenate([loc, [[-nothing_value, -nothing_value], [nothing_value, nothing_value], [-nothing_value, nothing_value],[nothing_value, -nothing_value]]], axis=0)
+
+                # if diagonal: 
+                right = abs(loc[(loc[:, 0] > 0), 0]).min()
+                left = abs(loc[(loc[:, 0] < 0), 0]).min()
+                front = abs(loc[(loc[:, 1] < 0), 1]).min()
+                behind = abs(loc[(loc[:, 1] > 0), 1]).min()
+                return right, left, front, behind
+            
+            enemy_R, enemy_L, enemy_F, enemy_B = loc_n_step_away(obs['inedible'], n=2)
+            body_R, body_L, body_F, _ = loc_n_step_away(obs['body'], n=2)
+
+            return np.array([[food_L, food_R, food_F, enemy_R, enemy_L, enemy_F, enemy_B, body_R, body_L, body_F]])/10
+    
+        feature_label = ['food_L', 'food_R', 'food_F', 'enemy_R', 'enemy_L', 'enemy_F', 'enemy_B', 'body_R', 'body_L', 'body_F']
+
+        def show_last_frame(self):
+            return self.last_obs, pd.Series(self.last_state[0], index=self.feature_label)
+
 
         def __call__(self, obs,  rewards):
-            
-            state = type(self).get_features(obs)  
+
+            state = type(self).get_features(obs)
+            self.last_obs = obs
+            self.last_state = state
+
 
             self.model.increment_agent_total_steps(self)
             if not self.next_action_random: 
