@@ -3,6 +3,15 @@ The AI server for [snake world](https://github.com/kwdChan/Snake-World/) using w
 The AI doesn't do well yet.
 
 
+## 24 Nov 2023 model 2
+Removed the length rewards and punishments for staying still
+Same behaviour
+
+Godot was frozen (likely due to the computer suspension) but the training continued in python with a replay buffer that wasn't large enough. 
+
+Starting to investigate before training the next model
+
+
 ## 24 Nov 2023 model 1 - Step 30000
 Removed some inputs (from 44 to 10)
 Reduced the number of hidden units
