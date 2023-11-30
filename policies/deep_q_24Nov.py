@@ -3,7 +3,7 @@ from .utils import to_sparse
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-
+import logging
 N_ACTION = 4
 def screenout_body_from_edible(edible, body):
     if not len(body) or len(edible):
@@ -22,27 +22,30 @@ def screenout_body_from_edible(edible, body):
 class DQLModelPreExtracted:
     def __init__(self):
         def create_model():
-            x = tf.keras.layers.Input(10)
-            z = tf.keras.layers.Dense(15, activation='relu')(x)
-            z = tf.keras.layers.Dense(4, activation='linear')(z)
+            x = tf.keras.layers.Input(6)
+            #z = tf.keras.layers.Dense(15, activation='relu')(x)
+            z = tf.keras.layers.Dense(4, activation='linear')(x)
             return tf.keras.Model(x, z)
         
         self.model = create_model()
         self.target_model = create_model()
+        self.target_model.set_weights(self.model.get_weights())
 
         # from https://keras.io/examples/rl/deep_q_network_breakout/
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=0.00025, clipnorm=1.0)
         self.loss_function = tf.keras.losses.Huber()
+
         self.gamma = 0.3
-
         self.max_agent_number = 100
-
-        self.max_replay_buffer_size=10000
+        self.max_replay_buffer_size=50000
         self.buffer_clearing_size = 1000
-        self.update_target = 20
+        self.update_target = 50
         self.save_freq = 10000
-        self.save_name = "24Nov2023"
+        self.save_name = "25Nov2023"
 
+        self.n_step_per_train_step = 1/10
+
+        # random behavour settings
         self.epsilon_random_frames = 10000
         self.epsilon_greedy_frames = 1000000
 
@@ -53,12 +56,14 @@ class DQLModelPreExtracted:
             self.epsilon_max - self.epsilon_min
         )  # Rate at which to reduce chance of random action being taken
 
+        # model change report
 
         # variables
         self.train_step = 0
         self.agent_list = []
-
         self.agent_total_steps = 0
+        self.eval_states = None
+        self.evel_change_history = []
 
     def increment_agent_total_steps(self, agent:"Agent"):
         self.agent_total_steps += 1
@@ -66,32 +71,51 @@ class DQLModelPreExtracted:
             agent.make_next_action_random()
         self.epsilon -= self.epsilon_interval / self.epsilon_greedy_frames
     
+    def draw_eval_states(self, size):
+        self.eval_states = self.draw_samples(size)
+
+    def eval_changes(self, raise_error=True):
+        
+        if (self.eval_states is None):
+            if raise_error: 
+                raise RuntimeError('run draw_eval_states')
+            else: 
+                return 
+        self.evel_change_history.append(self.model(self.eval_states[0]))
+
+
+
+    def draw_samples(self, n_sample):
+        total_length = sum([a_.replay_buffer_size for a_ in self.agent_list])
+
+        s = []
+        r = []
+        a = []
+        ns = []
+
+        for agent_ in self.agent_list:
+            n_sample_ = int(n_sample*(agent_.replay_buffer_size/total_length))+1
+            hist = agent_.draw_history(n_sample_)
+            s += hist["state"]
+            r += hist["reward"]
+            a += hist["action"]
+            ns += hist["next_state"]
+
+        s, r, a, ns = np.concatenate(s, axis=0), np.array(r), np.array(a), np.concatenate(ns, axis=0)
+        indices = np.random.choice(n_sample, n_sample, replace=False)
+
+        return s[indices], r[indices], a[indices], ns[indices]
+    
+
     def train(self, n_sample):
-        agent_list = self.agent_list
+        if self.agent_total_steps / self.n_step_per_train_step < self.train_step:
+            logging.debug('skip training')
+            pass
 
-        def draw_samples(agent_list, n_sample):
-            total_length = sum([a_.replay_buffer_size for a_ in agent_list])
+        s, r, a, ns = self.draw_samples(n_sample)
 
-            s = []
-            r = []
-            a = []
-            ns = []
+        logging.debug(f"batch size: {len(s)}")
 
-            for agent_ in agent_list:
-                n_sample = int(n_sample*(agent_.replay_buffer_size/total_length))+1
-                hist = agent_.draw_history(n_sample)
-                s += hist["state"]
-                r += hist["reward"]
-                a += hist["action"]
-                ns += hist["next_state"]
-
-            s, r, a, ns = np.concatenate(s, axis=0), np.array(r), np.array(a), np.concatenate(ns, axis=0)
-            indices = np.random.choice(n_sample, n_sample, replace=False)
-
-            return s[indices], r[indices], a[indices], ns[indices]
-        
-        s, r, a, ns = draw_samples(agent_list, n_sample)
-        
         #print(ns.shape)
         q_ns: tf.Tensor = self.target_model(ns) #(sample, action)
 
@@ -113,7 +137,12 @@ class DQLModelPreExtracted:
 
         self.train_step += 1
 
+        if self.train_step == 200:
+            self.draw_eval_states(512)
+
         if not(self.train_step % self.update_target):
+            logging.debug("updated target model")
+            self.eval_changes(raise_error=False)
             self.target_model.set_weights(self.model.get_weights())
 
         if not (self.train_step % self.save_freq):
@@ -244,9 +273,9 @@ class DQLModelPreExtracted:
             enemy_R, enemy_L, enemy_F, enemy_B = loc_n_step_away(obs['inedible'], n=2)
             body_R, body_L, body_F, _ = loc_n_step_away(obs['body'], n=2)
 
-            return np.array([[food_L, food_R, food_F, enemy_R, enemy_L, enemy_F, enemy_B, body_R, body_L, body_F]])/10
+            return np.array([[food_L, food_R, food_F, body_R, body_L, body_F]])
     
-        feature_label = ['food_L', 'food_R', 'food_F', 'enemy_R', 'enemy_L', 'enemy_F', 'enemy_B', 'body_R', 'body_L', 'body_F']
+        feature_label = ['food_L', 'food_R', 'food_F', 'body_R', 'body_L', 'body_F']
 
         def show_last_frame(self):
             return self.last_obs, pd.Series(self.last_state[0], index=self.feature_label)
@@ -278,9 +307,6 @@ class DQLModelPreExtracted:
             self.state_hist.append(state)
             self.action_hist.append(action)
             self.training_step.append(self.model.train_step)
-            
-
-
 
             return action
 

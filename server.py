@@ -25,6 +25,8 @@ def get_obs(message):
 
 
 
+
+
 async def main(model_byName):
     async def handler(ws):
         """
@@ -40,10 +42,8 @@ async def main(model_byName):
         """
         while True:
             data = json.loads(await ws.recv())
-            logging.debug("incoming")
-            message = json.loads(data['message'])
+            data['message'] = json.loads(data['message'])
 
-            obs = get_obs(message)
 
             model = model_byName.get(data['tag'])
 
@@ -51,15 +51,15 @@ async def main(model_byName):
                 logging.warning('model name not found: %s '%data['tag'])
                 action = Action.STAY
             else: 
-
-                agent = model.get_agent(data['receiver_id'])
-                action = agent(obs, message['rewards'])
-            
+                action = model.handler(data, get_obs(data['message']))
+                
+                #agent = model.get_agent(data['receiver_id'])
+                #action = agent(obs, message['rewards'])
 
             res = {}
             res['receiver_id'] = data['receiver_id']
             res['tag'] = data['tag']
-            res['message'] = { 'time':message['time']}
+            res['message'] = { 'time':data['message']['time']}
             res['message']['action'] = action
             await ws.send(json.dumps(res))
 
