@@ -3,6 +3,24 @@ The AI server for [snake world](https://github.com/kwdChan/Snake-World/) using w
 The AI doesn't do well yet.
 
 
+## 1 Dec
+Debug progress:
+
+The rewards were given two steps after the action was taken. 
+
+This was because the rewards were given according to the change in the length of the snake,
+but the length of the snake changes only after the snake moves after it eats. 
+
+This is detrimental to the learning as the model does not know it has eaten in the previous step and it would appear to the model that rewards are given randomly when there's no food. 
+
+
+Also, the delay between Godot and Python can go above 100ms when there are too many snakes in the environment. 
+
+If this is the case, the rewards for an action will only be received after another action is taken.
+
+
+
+
 ## 24 Nov 2023 model 2
 Removed the length rewards and punishments for staying still
 Same behaviour
