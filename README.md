@@ -11,7 +11,7 @@ The AI doesn't do well yet.
   - The learning rate was okay: the predicted q values were improving over training steps.  
   - The rewards sometime does not work (likely the source of the problem)
   - The error was high when the model recieves rewards: the model does not expect the rewards at all.
-    - try to selectively train on those steps to see if there's an error    
+    - try to selectively train on those steps to see if there's a bug    
 
 ## 6 Dec 
 The model is back to the spining mode and doesn't even eat the food. Starting to debug again. 
