@@ -2,6 +2,39 @@
 The AI server for [snake world](https://github.com/kwdChan/Snake-World/) using websocket. 
 The AI doesn't do well yet.
 
+## Debugging note
+- 6Dec
+  - Fixed rewards scheme: the model recieved rewards by repeatedly eating itself
+  - Gamma was too high - getting longer means it's more likely to get hit in the future. The discounted punishments in the future need to be smaller than the rewards. Otherwise the model would decide not to eat.
+  - Used elu instead of relu to prevent dead units
+- 7Dec
+  - The learning rate was okay: the predicted q values were improving over training steps.  
+  - The rewards sometime does not work (likely the source of the problem)
+  - The error was high when the model recieves rewards: the model does not expect the rewards at all.
+    - try to selectively train on those steps to see if there's a bug    
+
+## 6 Dec 
+The model is back to the spining mode and doesn't even eat the food. Starting to debug again. 
+
+
+## 3 Dec 
+
+Added enemy location. the model didn't behave well. 
+
+Designing better inputs for the snake for the next one
+
+
+## 2 Dec
+**The model is doing something meaningful for the first time.**  
+
+[Screencast from 02-12-23 19:11:46.webm](https://github.com/kwdChan/Snake-World-AI-Server/assets/64915487/c7df7d75-5ec5-4f2c-9751-c23da447bdae)
+
+The input is very simple: the distance of the nearest food that is directly in the front, left and right to the snake and some information about the body locations. 
+
+The model likes to spin the snakes when there's no food around. 
+I guess it's because the snake can scan more area for foods. 
+
+The debug should be done and it's time to add more complex inputs. 
 
 ## 1 Dec
 Debug progress:
