@@ -1,6 +1,11 @@
 # Snake-World-AI-Server
 The AI server for [snake world](https://github.com/kwdChan/Snake-World/) using websocket. 
 The AI doesn't do well yet.
+## The best so far: see 0:08 onwards
+[Screencast from 02-12-23 19:11:46.webm](https://github.com/kwdChan/Snake-World-AI-Server/assets/64915487/c7df7d75-5ec5-4f2c-9751-c23da447bdae)
+
+
+
 
 ## Debugging note
 - 6Dec
